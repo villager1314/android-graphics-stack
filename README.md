@@ -4,60 +4,50 @@ Android 图形软件栈：从 GPU 硬件、底层驱动到 Mesa、API 转换层�
 
 > 核查日期：2026-10-07。按**底层 → 上层**介绍；同类项目放在同级标题下。具体硬件兼容范围以对应版本的官方文档、源码设备表和发布说明为准。
 
-## 软件栈思维导图
+## 软件栈树状图
 
-按 ① → ⑤ 从底层读到上层。分支表示职责分类，具体调用关系见文末路径表。
+沿树枝由左向右查看分类，五个层级按 ① → ⑤ 从底层到上层排列。连线表示包含关系，实际调用路径见文末表格。
 
 ```mermaid
-mindmap
-  root((Android 图形软件栈))
-    ① GPU 硬件
-      Adreno
-      Mali 与 Immortalis
-      PowerVR 与 Xclipse
-    ② 固件与内核
-      GPU 固件
-      Adreno 内核接口
-        KGSL
-        msm DRM
-      Mali 内核接口
-        kbase
-        panfrost DRM
-        panthor DRM
-    ③ 用户态驱动
-      厂商实现
-        Qualcomm
-        Arm 与设备厂商
-      Mesa 硬件驱动
-        Freedreno 与 Turnip
-        Lima
-        Panfrost 与 PanVK
-      CPU 软件实现
-        llvmpipe 与 softpipe
-        Lavapipe
-        SwiftShader
-    ④ 接口与中间层
-      图形 API
-        OpenGL 与 GLES
-        Vulkan 与 Direct3D
-      API 转换
-        GL4ES 与 NG-GL4ES
-        LTW 与 MobileGlues
-        Zink 与 ANGLE
-        DXVK 与 VKD3D-Proton
-      平台接入
-        EGL 与 GLX
-        OSMesa 与 Vulkan WSI
-      图形虚拟化
-        VirGL
-        Venus
-    ⑤ 应用实现
-      Minecraft 启动器
-        FCL 内置项与插件
-        游戏渲染模组
-      Switch 模拟器
-        GPU 翻译后端
-        用户态驱动加载
+flowchart LR
+    ROOT["Android 图形软件栈"]
+
+    ROOT --- HW["① GPU 硬件"]
+    ROOT --- KERNEL["② 固件与内核"]
+    ROOT --- USER["③ 用户态驱动"]
+    ROOT --- MIDDLE["④ 接口与中间层"]
+    ROOT --- APP["⑤ 应用实现"]
+
+    HW --- ADRENO["Adreno"]
+    HW --- MALI["Mali / Immortalis"]
+    HW --- OTHER["PowerVR / Xclipse"]
+
+    KERNEL --- FW["GPU 固件"]
+    KERNEL --- AK["Adreno：KGSL / msm DRM"]
+    KERNEL --- MK["Mali：kbase / panfrost / panthor"]
+
+    USER --- VENDOR["厂商驱动：Qualcomm / Arm"]
+    USER --- MESA["Mesa 硬件驱动"]
+    USER --- CPU["CPU：llvmpipe / softpipe
+Lavapipe / SwiftShader"]
+    MESA --- FD["Adreno：Freedreno / Turnip"]
+    MESA --- PAN["Mali：Lima / Panfrost / PanVK"]
+
+    MIDDLE --- API["API：OpenGL / GLES
+Vulkan / Direct3D"]
+    MIDDLE --- TRANS["API 转换"]
+    MIDDLE --- PLATFORM["平台：EGL / GLX / OSMesa / WSI"]
+    MIDDLE --- VIRTUAL["虚拟化：VirGL / Venus"]
+    TRANS --- GLES["GL → GLES：GL4ES / NG-GL4ES
+LTW / MobileGlues"]
+    TRANS --- VK["GL → Vulkan：Zink
+GLES → 多后端：ANGLE"]
+    TRANS --- D3D["D3D → Vulkan：DXVK / VKD3D-Proton"]
+
+    APP --- MC["Minecraft 启动器"]
+    APP --- NS["Switch 模拟器"]
+    MC --- FCL["FCL 内置项与插件 / 游戏模组"]
+    NS --- EMU["GPU 翻译后端 / 驱动加载"]
 ```
 
 ## 目录
