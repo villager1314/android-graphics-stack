@@ -138,9 +138,9 @@ GPU 将画面渲染到缓冲区，窗口系统和合成器接收、合成这些�
 
 #### 3.2.1 Qualcomm 驱动
 
-Android 系统中的 Adreno GLES/Vulkan 实现通常以闭源二进制随固件提供。模拟器里的“Qualcomm 自定义驱动包”可能是提取并重新包装的用户态库。
+Android 系统中的 Adreno GLES/Vulkan 实现通常以闭源二进制随固件提供。模拟器里的“Qualcomm 自定义驱动包”通常是从 Qualcomm 用户态驱动中提取、修补依赖并重新打包的版本。
 
-这类包中的厂商驱动是闭源二进制，分发项目可能另外开放打包脚本和适配代码。
+驱动本体仍是闭源二进制；部分分发项目另外开放打包脚本和适配代码。
 
 #### 3.2.2 Arm/Mali 驱动
 
@@ -150,7 +150,7 @@ Android 的 Mali GLES/Vulkan 通常由设备厂商集成。它与设备内核、
 
 系统随固件提供 Samsung 的 GLES/Vulkan 实现。社区正在研究其 AMD 驱动技术基础，并开发 RADV 移植与原生驱动包装层。
 
-三星 Vulkan 驱动与 AMDVLK/PAL 的具体代码关系仍待可靠资料补充。
+目前没有公开代码或文档能确认三星 Vulkan 驱动直接基于 AMDVLK/PAL。
 
 ### 3.3 开源硬件驱动
 
@@ -349,7 +349,7 @@ Sodium、Embeddium 等模组调整游戏的绘制实现，Iris 增加光影支�
 
 ### 7.2 FCL 内置菜单
 
-核查官方主分支提交 `25fb237d48dfa19ba27d7d74d43ba380ec94fa71`，内置以下六项；其后会追加插件。正式版与旧版菜单可能不同。
+核查官方主分支提交 `25fb237d48dfa19ba27d7d74d43ba380ec94fa71`，内置以下六项；其后会追加插件。不同 FCL 版本的菜单项存在差异。
 
 | 菜单项 | 实际技术路线 | 下层依赖 |
 | --- | --- | --- |
@@ -360,15 +360,15 @@ Sodium、Embeddium 等模组调整游戏的绘制实现，Iris 增加光影支�
 | Zink | Mesa GL→Vulkan | 合适的 Vulkan 驱动 |
 | Freedreno | Adreno 原生 GL 路线 | 支持硬件与匹配内核接入 |
 
-VGPU 在 FCL 中加载 `libvgpu.so` 并使用系统 GLES；其独立上游和许可证资料待补充。
+VGPU 在 FCL 中加载 `libvgpu.so` 并使用系统 GLES。目前未找到其独立上游仓库和许可证说明。
 
 官方：[FCL](https://github.com/FCL-Team/FoldCraftLauncher)、[核查版本的 RendererManager](https://github.com/FCL-Team/FoldCraftLauncher/blob/25fb237d48dfa19ba27d7d74d43ba380ec94fa71/FCL/src/main/java/com/mio/manager/RendererManager.kt)。
 
 ### 7.3 插件与相近方案
 
 - **MobileGlues、LTW：**常见 GL→GLES 扩展路线。
-- **Mesa/Zink 组合：**可能使用不同 Mesa、Vulkan 驱动和窗口桥接版本。
-- **VirGL、软件渲染或实验组合：**是否可选由安装版、插件与第三方分支决定。
+- **Mesa/Zink 组合：**不同插件会搭配不同版本的 Mesa、Vulkan 驱动和窗口桥接。
+- **VirGL、软件渲染或实验组合：**由具体安装版、插件和第三方分支提供。
 
 插件安装后会追加到渲染器菜单，MG、LTW 等项目也通过这种方式接入。
 
