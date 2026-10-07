@@ -2,7 +2,9 @@
 
 Android 图形软件栈：从 GPU 硬件、底层驱动到 Mesa、API 转换层，以及 Minecraft 启动器和 Switch 模拟器中的图形实现。
 
-> 更新：2026-10-07。本文整理组件关系与常见实现，设备兼容范围请查看各项目的支持表和发布说明。
+> 更新：2026-10-07。本文按硬件、驱动、转换层和应用整理 Android 图形实现。
+
+具体设备适配涉及 GPU 型号、内核接口和应用加载方式。各条目后的项目链接提供支持表与发布说明。
 
 ## 结构总览
 
@@ -85,7 +87,7 @@ Imagination 的 GPU IP 家族，用于部分移动与嵌入式 SoC。其代表�
 
 固件运行在 GPU 内部控制处理器等单元上，参与命令处理或调度。部分 GPU 即使采用开源驱动，仍需加载厂商固件。
 
-固件、用户态驱动和内核驱动是不同组件；模拟器中导入的普通驱动 ZIP 通常不会替换 GPU 固件。
+固件随系统加载；模拟器导入的驱动 ZIP 则装载用户态图形库。
 
 ### 2.2 Adreno 内核驱动
 
@@ -116,9 +118,7 @@ Samsung 的 Xclipse 内核图形栈包含 amdgpu 相关实现，并有设备侧�
 
 ### 2.5 显示与缓冲区接口
 
-GPU 负责渲染，显示控制器负责输出画面；窗口系统和合成器还要接收、共享并呈现缓冲区。因此，“GPU 可以计算”与“应用能正确显示”需要分别验证。
-
-Android 的缓冲区分配、mapper、同步和呈现接口，也是移植驱动时需要匹配的部分。
+GPU 将画面渲染到缓冲区，窗口系统和合成器接收、合成这些缓冲区，显示控制器负责输出到屏幕。Android 的分配器、mapper 和同步机制负责衔接这条路径。
 
 ## 3. 用户态驱动与 Mesa
 
@@ -126,11 +126,11 @@ Android 的缓冲区分配、mapper、同步和呈现接口，也是移植驱动
 
 ### 3.1 Mesa 与 Gallium3D
 
-**Mesa 是项目集合，不是一个单独驱动。**它包含多种 API 实现、硬件驱动、软件渲染器、编译器和平台适配代码。
+**Mesa 是一组图形实现的集合。**它包含硬件驱动、软件渲染器、API 转换层、着色器编译器和平台适配代码。
 
 **Gallium3D 是 Mesa 内部的驱动框架。**Freedreno、Panfrost、Zink、VirGL、llvmpipe 等复用其接口；Turnip 等 Vulkan 驱动有各自的 API 实现路径。
 
-安装 Mesa 后，实际后端可能是硬件驱动，也可能是 llvmpipe。Mesa 的版本号也不等于某颗 GPU 支持的 API 版本。
+例如，在 Adreno 上可以使用 Freedreno 提供 OpenGL、Turnip 提供 Vulkan；缺少硬件加速时，可以使用 llvmpipe 在 CPU 上运行 OpenGL。
 
 参考：[Mesa](https://docs.mesa3d.org/index.html)、[Gallium](https://docs.mesa3d.org/gallium/index.html)、[许可证](https://docs.mesa3d.org/license.html)。
 
@@ -140,7 +140,7 @@ Android 的缓冲区分配、mapper、同步和呈现接口，也是移植驱动
 
 Android 系统中的 Adreno GLES/Vulkan 实现通常以闭源二进制随固件提供。模拟器里的“Qualcomm 自定义驱动包”可能是提取并重新包装的用户态库。
 
-GitHub 上可下载的驱动包不一定开源：打包脚本和适配库开放，并不代表其中的厂商驱动源码开放。
+这类包中的厂商驱动是闭源二进制，分发项目可能另外开放打包脚本和适配代码。
 
 #### 3.2.2 Arm/Mali 驱动
 
@@ -148,9 +148,9 @@ Android 的 Mali GLES/Vulkan 通常由设备厂商集成。它与设备内核、
 
 #### 3.2.3 Samsung/Xclipse 驱动
 
-系统随固件提供 Samsung 的 GLES/Vulkan 实现。关于其 Vulkan 实现与 AMDVLK/PAL 的关系，社区有逆向分析；公开资料尚不足以在这里确认全部代码来源和修改范围。
+系统随固件提供 Samsung 的 GLES/Vulkan 实现。社区正在研究其 AMD 驱动技术基础，并开发 RADV 移植与原生驱动包装层。
 
-使用时应区分三星系统驱动、AMDVLK 上游、RADV 移植和原生驱动包装层，分别核对项目与设备支持。
+三星 Vulkan 驱动与 AMDVLK/PAL 的具体代码关系仍待可靠资料补充。
 
 ### 3.3 开源硬件驱动
 
@@ -168,25 +168,23 @@ Mesa 的 **Adreno Vulkan** 驱动，与 Freedreno 共享部分底层组件，但
 
 Android 模拟器常用针对 KGSL 与应用加载机制编译的 Turnip 包。传统 OpenGL 应用通常需要 Zink 等上层实现与它组合。
 
-支持范围应查看具体源码设备表和发布说明，不能把某代部分型号支持推广到整代 GPU。
-
 官方：[Turnip 文档](https://docs.mesa3d.org/drivers/freedreno.html#turnip)。
 
 #### 3.3.3 Lima
 
-面向旧 **Mali Utgard**，如 Mali-400/450，主要提供 GLES 2.0 与一定桌面 GL 能力。不是现代 Mali-G 系列或现代 Vulkan 的适配方案。
+面向旧 **Mali Utgard**，如 Mali-400/450，主要提供 GLES 2.0 与一定桌面 GL 能力。
 
 官方：[Lima](https://docs.mesa3d.org/drivers/lima.html)。
 
 #### 3.3.4 Panfrost
 
-面向支持的 **Mali OpenGL/OpenGL ES** 硬件实现。具体型号、API 水平和认证状态见官方表；Linux 运行还需对应内核驱动和显示适配。
+Mesa 的 **Mali OpenGL/OpenGL ES** 驱动。它编译着色器、生成 Mali GPU 命令，并通过 panfrost 或 panthor 等内核驱动提交。
 
 官方：[Panfrost](https://docs.mesa3d.org/drivers/panfrost.html)。
 
 #### 3.3.5 PanVK
 
-Panfrost 栈中的 **Mali Vulkan** 实现。与 Turnip 职责相近，但目标硬件不同；不能拿 Turnip 包替代 PanVK。
+Panfrost 栈中的 **Mali Vulkan** 实现。Panfrost 提供 GL/GLES，PanVK 提供 Vulkan；两者共享部分 Mali 硬件支持代码。
 
 官方：[PanVK](https://docs.mesa3d.org/drivers/panfrost.html)。
 
@@ -194,13 +192,13 @@ Panfrost 栈中的 **Mali Vulkan** 实现。与 Turnip 职责相近，但目标�
 
 Mesa 的 AMD Vulkan 驱动，与 Turnip、PanVK 同属硬件 Vulkan 实现，使用不同的硬件后端与编译器。
 
-社区已有 Android Xclipse 移植。[radv-xclipse](https://github.com/JimVulkan/radv-xclipse) 当前 README 列出 Xclipse 920、530，并提供模拟器可加载的 ZIP 构建方式；其他型号与版本应按项目说明确认。这是社区移植，支持范围与桌面 RADV 不同。
+社区已有 Android Xclipse 移植。[radv-xclipse](https://github.com/JimVulkan/radv-xclipse) 当前 README 列出 Xclipse 920、530，并提供模拟器可加载的 ZIP 构建方式。
 
 官方：[RADV](https://docs.mesa3d.org/drivers/radv.html)。
 
 #### 3.3.7 AMDVLK
 
-AMD 独立于 Mesa 的开源 Vulkan 实现，基于 PAL 等组件。其上游主要面向 Linux Radeon；上游仓库现已标记停止维护。Xclipse 采用 RDNA 技术，并不自动获得桌面 AMDVLK 包的 Android 兼容性。
+AMD 独立于 Mesa 的开源 Vulkan 实现，基于 PAL 等组件。其上游主要面向 Linux Radeon；上游仓库现已标记停止维护。将 AMDVLK 用于 Xclipse，需要适配 Android 与 Samsung 的设备接口。
 
 官方：[AMDVLK](https://github.com/GPUOpen-Drivers/AMDVLK)。
 
@@ -215,7 +213,7 @@ AMD 独立于 Mesa 的开源 Vulkan 实现，基于 PAL 等组件。其上游主
 | Lavapipe | Mesa | Vulkan 软件实现 |
 | SwiftShader | Google 独立项目 | 以 CPU 为主的 Vulkan 实现 |
 
-软件渲染适合测试、故障排查与轻量场景。API 能力较完整不代表游戏流畅；出现 `llvmpipe` 一般说明主要 3D 计算未走预期 GPU 加速。
+软件渲染适合测试、故障排查与轻量场景。CPU 需要承担原本由 GPU 并行执行的工作，复杂游戏中的性能通常较低。
 
 参考：[llvmpipe](https://docs.mesa3d.org/drivers/llvmpipe.html)、[Mesa 源码](https://gitlab.freedesktop.org/mesa/mesa)、[SwiftShader](https://github.com/google/swiftshader)。
 
@@ -230,7 +228,7 @@ AMD 独立于 Mesa 的开源 Vulkan 实现，基于 PAL 等组件。其上游主
 | Vulkan | 显式图形与计算接口 | Turnip、Zink 和许多模拟器使用的宿主接口 |
 | Direct3D | Windows 图形接口 | Android Windows 兼容环境常借助转换层 |
 
-**OpenGL 与 GLES 不是仅版本号不同的同一接口。**同样，Vulkan 版本号不能完整表达特性、扩展、格式和限制值。
+GLES 针对移动设备精简和调整了 OpenGL 的功能。桌面程序用到的部分接口，需要转换层模拟。Vulkan 则由应用更直接地管理资源、同步和命令提交。
 
 参考：[Khronos OpenGL](https://www.khronos.org/opengl/)、[OpenGL ES](https://www.khronos.org/opengles/)、[Vulkan](https://www.vulkan.org/)、[Android Vulkan 指南](https://developer.android.com/ndk/guides/graphics)。
 
@@ -240,14 +238,14 @@ AMD 独立于 Mesa 的开源 Vulkan 实现，基于 PAL 等组件。其上游主
 | --- | --- |
 | EGL | 建立图形上下文并连接平台表面 |
 | GLX | 连接 OpenGL 与 X Window |
-| OSMesa | OpenGL 离屏渲染接口；名称本身不能证明采用 CPU |
+| OSMesa | OpenGL 离屏渲染接口，可接硬件或软件后端 |
 | Vulkan Loader | 加载图形实现并分发调用 |
 | WSI | Vulkan 与窗口、交换链和呈现系统的集成 |
 
 ### 4.3 着色器与中间表示
 
 - **GLSL：**OpenGL/GLES 常用的着色器语言。
-- **SPIR-V：**Vulkan 常见着色器输入，是中间表示，不是所有 GPU 直接执行的机器码。
+- **SPIR-V：**Vulkan 常见的着色器中间表示，由驱动继续编译成 GPU 指令。
 - **NIR：**Mesa 内部用于优化和转换的中间表示。
 - **GPU 机器码：**硬件驱动最终为特定 GPU 生成的指令。
 
@@ -263,29 +261,25 @@ AMD 独立于 Mesa 的开源 Vulkan 实现，基于 PAL 等组件。其上游主
 
 GL4ES 上游侧重 OpenGL 2.1/1.5 到 GLES 2.0/1.1 的转换，包括固定管线模拟。Holy GL4ES 是 Minecraft 启动器生态中的定向变体。
 
-通常仍由 GPU 绘制；复杂桌面 GL 扩展和着色器不一定能完整转换。
+转换后的 GLES 调用交给系统驱动，最终由手机 GPU 绘制。
 
 项目：[GL4ES](https://github.com/ptitSeb/gl4es)、[Holy GL4ES](https://github.com/FCL-Team/Holy-GL4ES)。
 
 #### 5.1.2 NG-GL4ES / Krypton Wrapper
 
-从 GL4ES 相关实现发展而来，扩展着色器处理与 OpenGL 能力。核查的 FCL 项目将 NG-GL4ES 称为 Krypton Wrapper。
-
-它属于 GL→GLES 路线，兼容范围由具体构建决定。
+从 GL4ES 相关实现发展而来，扩展着色器处理与 OpenGL 能力。FCL 中的菜单名称是 Krypton Wrapper。它将桌面 GL 调用和着色器适配到手机 GLES。
 
 项目：[NG-GL4ES](https://github.com/FCL-Team/NG-GL4ES)。
 
 #### 5.1.3 LTW
 
-Large Thin Wrapper，主要面向 Minecraft，将桌面 **OpenGL Core** 适配到 GLES。Core 路线能运行，不代表依赖旧固定管线的全部程序兼容。
+Large Thin Wrapper，主要面向 Minecraft，将桌面 **OpenGL Core** 适配到 GLES。重点处理现代 Core Profile 的绘制接口和着色器。
 
 项目：[LTW](https://github.com/MojoLauncher/LTW)。
 
 #### 5.1.4 MobileGlues（MG）
 
-面向 Minecraft Java 的 GL→GLES 实现，项目推荐 GLES 3.2，最低要求 GLES 3.0。现代模组与光影的支持需按版本测试。
-
-通常使用系统 GLES 驱动，不必因选择 MG 就额外配 Turnip。
+面向 Minecraft Java 的 GL→GLES 实现，项目推荐 GLES 3.2，最低要求 GLES 3.0。转换后的调用由系统 GLES 驱动执行。
 
 项目：[MobileGlues](https://github.com/MobileGL-Dev/MobileGlues)、[发布与插件](https://github.com/MobileGL-Dev/MobileGlues-release)。
 
@@ -303,9 +297,7 @@ Mesa Gallium 驱动，将 OpenGL 实现到 Vulkan 上，下层可接 Turnip 或�
 
 #### 5.3.1 ANGLE
 
-对外提供 GLES/EGL，使用 Vulkan、Direct3D、Metal、OpenGL 等后端。它通常不能独自替代 Minecraft 所需的桌面 OpenGL 层。
-
-可能组合为 GL 包装器 → GLES → ANGLE → Vulkan → 驱动；是否提供这条路径要看具体应用。
+对外提供 GLES/EGL，使用 Vulkan、Direct3D、Metal、OpenGL 等后端。桌面 OpenGL 程序可先通过 GL→GLES 包装器接入 ANGLE，形成 GL 包装器 → GLES/ANGLE → Vulkan → 驱动的组合。
 
 项目：[ANGLE](https://github.com/google/angle)。
 
@@ -321,19 +313,19 @@ Mesa Gallium 驱动，将 OpenGL 实现到 Vulkan 上，下层可接 Turnip 或�
 
 ## 6. 图形虚拟化与运行环境
 
-图形虚拟化解决客体/客户端如何使用宿主图形能力，不能与 CPU 软件渲染混为一类。
+图形虚拟化将客户端或客体系统的图形工作传给宿主，由宿主驱动执行。
 
 ### 6.1 VirGL
 
 虚拟 3D GPU 路线：客户端/客体的图形工作通过 VirGL 交给宿主 virglrenderer，再由宿主后端执行。
 
-Android 适配可使用本地 vtest/socket 转发，不一定启动完整虚拟机。它通常可利用宿主 GPU，但也可能接到软件后端。
+Android 启动器中常用本地 vtest/socket 连接客户端与 virglrenderer，宿主后端再调用 GPU 驱动或软件实现。
 
 官方：[VirGL](https://docs.mesa3d.org/drivers/virgl.html)。
 
 ### 6.2 Venus
 
-用于 Vulkan 命令序列化与 Virtio-GPU 环境。它与 VirGL 的经典 GL 路线不同，需要客体设备、宿主渲染器及驱动满足相应条件。
+用于 Vulkan 命令序列化与 Virtio-GPU 环境。客体中的 Vulkan 调用经 Virtio-GPU 传到宿主，再由宿主 Vulkan 驱动执行。
 
 官方：[Venus](https://docs.mesa3d.org/drivers/venus.html)。
 
@@ -353,7 +345,7 @@ Android 适配可使用本地 vtest/socket 转发，不一定启动完整虚拟�
 
 Minecraft Java 的传统路径通过 LWJGL 使用桌面 OpenGL。Android 启动器负责 JVM、原生库、窗口与输入接入，并提供合适的 GL 实现。
 
-Sodium、Embeddium、Iris 等模组可能改变扩展和着色器需求。Minecraft 版本兼容，不等于所有整合包和光影兼容。
+Sodium、Embeddium 等模组调整游戏的绘制实现，Iris 增加光影支持，因而会改变所需的 GL 功能与着色器处理方式。
 
 ### 7.2 FCL 内置菜单
 
@@ -368,7 +360,7 @@ Sodium、Embeddium、Iris 等模组可能改变扩展和着色器需求。Minecr
 | Zink | Mesa GL→Vulkan | 合适的 Vulkan 驱动 |
 | Freedreno | Adreno 原生 GL 路线 | 支持硬件与匹配内核接入 |
 
-相关技术原理见前文。**VGPU 的完整独立上游、内部实现与许可证，本次未充分确认**；不能仅凭名称认定为 VirGL、llvmpipe 或通用虚拟显卡。
+VGPU 在 FCL 中加载 `libvgpu.so` 并使用系统 GLES；其独立上游和许可证资料待补充。
 
 官方：[FCL](https://github.com/FCL-Team/FoldCraftLauncher)、[核查版本的 RendererManager](https://github.com/FCL-Team/FoldCraftLauncher/blob/25fb237d48dfa19ba27d7d74d43ba380ec94fa71/FCL/src/main/java/com/mio/manager/RendererManager.kt)。
 
@@ -378,7 +370,7 @@ Sodium、Embeddium、Iris 等模组可能改变扩展和着色器需求。Minecr
 - **Mesa/Zink 组合：**可能使用不同 Mesa、Vulkan 驱动和窗口桥接版本。
 - **VirGL、软件渲染或实验组合：**是否可选由安装版、插件与第三方分支决定。
 
-插件能不断增加，因此“全部渲染器”应以指定启动器版本和已安装插件为范围。
+插件安装后会追加到渲染器菜单，MG、LTW 等项目也通过这种方式接入。
 
 参考：[FCLRendererPlugin](https://github.com/ShirosakiMio/FCLRendererPlugin)。
 
@@ -406,7 +398,7 @@ Sodium、Embeddium、Iris 等模组可能改变扩展和着色器需求。Minecr
 
 CPU 模拟、GPU 翻译和宿主驱动是不同工作。换驱动主要改变宿主执行层。
 
-项目参考：[Skyline](https://github.com/skyline-emu/skyline)、[Strato](https://github.com/strato-emu/strato)；仓库存在不代表当前仍持续维护。
+项目参考：[Skyline](https://github.com/skyline-emu/skyline)、[Strato](https://github.com/strato-emu/strato)。
 
 ### 8.2 驱动类别
 
@@ -416,25 +408,23 @@ CPU 模拟、GPU 翻译和宿主驱动是不同工作。换驱动主要改变宿
 
 #### 8.2.2 Turnip 自定义包
 
-Android 可加载的 Mesa Turnip 构建，用于支持的 Adreno。可能修复系统驱动问题，也可能出现回归；应核对 GPU、Android API、KGSL 与模拟器加载支持。
+Android 可加载的 Mesa Turnip 构建，用于支持的 Adreno。模拟器通过加载该用户态库，使用 Turnip 的着色器编译、资源管理和命令提交实现。
 
 #### 8.2.3 Qualcomm 自定义包
 
-提取、修补依赖或包装的 Qualcomm 闭源用户态驱动。厂商版本编号不能与 Mesa 版本直接比较，也不能据此推断跨全部 Adreno 兼容。
+提取、修补依赖或包装的 Qualcomm 闭源用户态驱动。它保留 Qualcomm 的图形实现，通过打包和依赖适配供应用加载。
 
-发布参考：[AdrenoToolsDrivers](https://github.com/K11MCH1/AdrenoToolsDrivers)、[版本说明](https://github.com/K11MCH1/AdrenoToolsDrivers/releases)。这是分发项目，不是 Mesa 官方发布渠道。
+发布参考：[AdrenoToolsDrivers](https://github.com/K11MCH1/AdrenoToolsDrivers)、[版本说明](https://github.com/K11MCH1/AdrenoToolsDrivers/releases)。该仓库集中分发社区 Turnip 构建与 Qualcomm 驱动包。
 
 #### 8.2.4 Xclipse 驱动与包装层
 
 Xclipse 可关注两类项目：RADV Android 移植，以及在三星原生 Vulkan 上增加兼容功能的包装层。后者例如 [ExynosTools](https://github.com/WearyConcern1165/ExynosTools)，保留系统驱动作为后端。
 
-驱动替换与包装层的工作方式不同。能否导入 ZIP，还取决于模拟器的加载机制与具体设备。
+RADV 移植提供新的 Vulkan 实现；包装层拦截并调整部分 Vulkan 调用，再交给系统驱动。
 
 ### 8.3 libadrenotools 与无 root 加载
 
-libadrenotools 是驱动加载/修改工具库，**不是 GPU 驱动本身**。支持它的应用可以在进程内加载另一套 Adreno 用户态实现。
-
-这种替换通常只影响该应用，不会替换整机内核驱动或让其他应用自动使用新驱动。
+libadrenotools 为应用提供 Adreno 驱动加载和修改功能。模拟器借助它在自身进程中加载指定的用户态库，再使用手机现有的内核驱动提交命令。
 
 项目：[libadrenotools](https://github.com/bylaws/libadrenotools)。
 
@@ -446,10 +436,10 @@ libadrenotools 是驱动加载/修改工具库，**不是 GPU 驱动本身**。�
 | --- | --- |
 | `vendor`、`driverVersion` | 实现类别及驱动版本 |
 | `minApi`、`libraryName` | 最低 Android API 与主库入口 |
-| `packageVersion`、Revision/R | 发布者的打包修订；不同作者间不能直接比较 |
-| Mesa 版本 | 上游基础版本，不是完整兼容保证 |
+| `packageVersion`、Revision/R | 发布者自己的打包修订编号 |
+| Mesa 版本 | 构建所用的 Mesa 上游版本 |
 | Qualcomm vxxx | 厂商驱动版本标识 |
-| beta/experimental | 实验支持，需逐设备验证 |
+| beta/experimental | 测试中或实验性的构建 |
 | GMEM/SYSMEM/autotuner | 分块/系统内存渲染策略及调优标记 |
 
 格式参考：[ADPKG](https://github.com/bylaws/libadrenotools/blob/master/tools/ADPKG.md)。
@@ -458,7 +448,7 @@ libadrenotools 是驱动加载/修改工具库，**不是 GPU 驱动本身**。�
 
 ASTC、BCn 等压缩格式，以及着色器编译、资源布局和同步行为，都会影响模拟器画面与性能。格式不匹配可能需要解码或转换，增加内存和计算开销。
 
-花屏不一定由单一纹理格式造成；新驱动也不一定更快。应同时比较画面、崩溃、帧时间和持续运行表现。
+排查画面异常时，可结合日志检查纹理格式、着色器编译、资源布局与同步；性能测试同时记录帧时间和持续运行表现。
 
 ## 9. 调用路径与排查
 
